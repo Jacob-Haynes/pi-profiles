@@ -1,0 +1,11 @@
+[Unit]
+Description=Pi Profile Switcher (boot)
+After=network.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/opt/pi-profiles/switch.sh --boot
+
+[Install]
+WantedBy=multi-user.target
