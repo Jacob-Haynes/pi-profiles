@@ -989,7 +989,7 @@ def test_push_to_pi_offline(tmp_path):
     # mirrors: pi-profiles (this repo) + a tiny drone-detector with a requirement the venv lacks
     subprocess.run(["git", "clone", "-q", "--mirror", str(REPO), str(mirror / "pi-profiles.git")], check=True)
     work = tmp_path / "dd"
-    subprocess.run(["git", "init", "-q", "-b", "feature/fit-for-purpose", str(work)], check=True)
+    subprocess.run(["git", "init", "-q", "-b", "main", str(work)], check=True)
     (work / "requirements.txt").write_text("definitely-not-installed-pkg==1.0\n")
     subprocess.run(["git", "-C", str(work), "add", "."], check=True)
     subprocess.run(["git", "-C", str(work), "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "x"], check=True)

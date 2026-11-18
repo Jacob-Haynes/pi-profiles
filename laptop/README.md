@@ -26,7 +26,7 @@ The hotspot has no internet, so the order is: **download everything on normal in
 
 ```bash
 # 1. On normal internet
-git clone -b feature/one-pi-platform https://github.com/Jacob-Haynes/pi-profiles.git ~/isr-kit/pi-profiles
+git clone https://github.com/Jacob-Haynes/pi-profiles.git ~/isr-kit/pi-profiles
 cd ~/isr-kit/pi-profiles
 gh auth login && gh auth setup-git          # private repos (op-sentry, photoAnalysis)
 laptop/setup-mac.sh --role hq --extra fpv-vision --fpv-footage ~/Desktop/ISR-demo/fpv   # HQ Mac: about 23 GB of models

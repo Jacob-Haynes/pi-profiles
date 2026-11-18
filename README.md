@@ -20,7 +20,7 @@ Runs a whole observation, surveillance, detection and drone-ops demo from **one 
 
 ```bash
 sudo apt-get install -y git
-git clone -b feature/one-pi-platform https://github.com/Jacob-Haynes/pi-profiles.git
+git clone https://github.com/Jacob-Haynes/pi-profiles.git
 cd pi-profiles
 sudo ./bootstrap.sh
 ```

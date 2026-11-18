@@ -27,7 +27,7 @@
 #   --mirror-dir DIR       Mac-side mirrors (default ~/isr-kit/mirror)
 #   --remote-dir DIR       Pi-side mirrors (default ~/isr-mirror, i.e. the SSH user's home)
 #   --pi-profiles-dir DIR  pi-profiles checkout on the Pi (default ~/pi-profiles; cloned if missing)
-#   --branch BR            pi-profiles branch to check out on the Pi (default feature/one-pi-platform)
+#   --branch BR            pi-profiles branch to check out on the Pi (default main)
 #   --bootstrap            also run bootstrap.sh --skip-apt (extra args after --, e.g. -- --only fpv-vision)
 #   --maps                 also copy ~/isr-kit/maps/*.mbtiles (laptop/build-map-pack.py) to the Pi's
 #                          /var/lib/isr-maps (resumable rsync to ~/isr-maps.staging, then sudo install)
@@ -45,7 +45,7 @@ MIRROR="${ISR_MIRROR_DIR:-$HOME/isr-kit/mirror}"
 REMOTE_DIR="~/isr-mirror"
 # shellcheck disable=SC2088
 PIPROF="~/pi-profiles"
-PIBRANCH="feature/one-pi-platform"
+PIBRANCH="main"
 BOOT=0; FETCH=1; DRY=0; MAPS=0; MAPS_ONLY=0
 MAPS_SRC="${ISR_MAPS_OUT:-$HOME/isr-kit/maps}"
 BOOT_ARGS=()
