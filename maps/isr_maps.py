@@ -256,7 +256,7 @@ def index_html(packs: Dict[str, Pack]) -> str:
     state, word = ("ok", "Ready") if n else ("idle", "Off")
     return ("<!doctype html><html lang='en'><head><meta charset='utf-8'>"
             "<meta name='viewport' content='width=device-width, initial-scale=1'><title>Offline maps</title>"
-            "<link rel='stylesheet' href='/ui/isr-ui.css?v=3'><script src='/ui/isr-ui.js?v=3'></script></head><body>"
+            "<link rel='stylesheet' href='/ui/isr-ui.css?v=4'><script src='/ui/isr-ui.js?v=4'></script></head><body>"
             "<header class='isr-bar'><h1>Offline maps</h1><span class='isr-sub'>ATAK basemaps</span>"
             f"<div class='isr-right'><button class='isr-pill {state}' id='isr-status' type='button'>{word}</button>"
             "<a class='isr-kit-link' id='isr-kit-link' href='#'>Kit</a></div>"

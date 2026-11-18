@@ -1,6 +1,16 @@
 "use strict";
 // Shared by the mission board (board.js) and the engineer view (app.js). Loaded after /ui/isr-ui.js.
 let status = null;
+
+// Tab reuse: this tab is "isr-kit", so a tool page's Kit link (target="isr-kit", kit v4) comes back here
+// instead of opening another launcher tab. Each tool opens in its own named tab, isr-tool-<unit>, so a
+// second Open reuses it. rel="opener" (not noopener) keeps the tool tab in this tab's browsing-context
+// group: browsers only find a tab by name within its group. Board, Map, Engineer and Presenter are
+// plain links: they stay in this tab.
+try { window.name = "isr-kit"; } catch (e) {}
+const toolTarget = (unit) => "isr-tool-" + String(unit || "tool").replace(/[^A-Za-z0-9_-]/g, "");
+const openLink = (href, unit, label, cls) => '<a class="isr-btn' + (cls ? " " + cls : "") + '" href="' + esc(href)
+  + '" target="' + toolTarget(unit) + '" rel="opener">' + esc(label || "Open") + "</a>";
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) =>
   ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));

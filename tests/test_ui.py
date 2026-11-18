@@ -19,8 +19,8 @@ import isr_launcher as L        # noqa: E402
 
 # The kit as handed over (ui-kit v2). Changing ui/ is deliberate: update these and re-sync every repo.
 KIT_SHA256 = {
-    "isr-ui.css": "287c3df0938d25c25b04b751007095c3cf08e1df0e2689d3dd8df8b3e9eb832c",
-    "isr-ui.js": "79a61cb2a427302e45b62cbebe2d022eff2dcd0549df5edea77b13a6b478fe7d",
+    "isr-ui.css": "59982e401316f8ef3032df561974c542119bbbf606998af97f92fff656ddab1e",
+    "isr-ui.js": "109cef714b1f4dfba0159c0f5cab04e4cd2338eea61e41705063e43f4e9ea296",
     "fonts/barlow-condensed-500.woff2": "31ff5e6e96a096fde4d78bc838719e69b093db2d0b062b96e423c065a6d1b2b1",
     "fonts/barlow-condensed-600.woff2": "5bc49d41f32810a114765314392332ce2acae2276635eee265a50319a12c1b49",
     "fonts/ibm-plex-mono-400.woff2": "52de70091213c9eab340e2a7ac59e7b6b2b94e089bf69ef38479b22cfde4274c",
@@ -58,7 +58,7 @@ def test_kit_files_are_the_pinned_kit():
 
 def test_launcher_serves_the_kit_byte_identical(launcher):
     for name in KIT_SHA256:
-        s, h, b = get(launcher, f"/ui/{name}?v=3")
+        s, h, b = get(launcher, f"/ui/{name}?v=4")
         assert s == 200 and sha(b) == KIT_SHA256[name], name
     assert "text/css" in get(launcher, "/ui/isr-ui.css")[1]["Content-Type"]
     assert get(launcher, "/ui/fonts/ibm-plex-mono-400.woff2")[1]["Content-Type"] == "font/woff2"
@@ -81,7 +81,7 @@ def test_maps_serves_the_kit(tmp_path, monkeypatch):
             assert s == 200 and sha(b) == KIT_SHA256[name], name
         s, _, page = get(port, "/")
         page = page.decode()
-        assert s == 200 and "/ui/isr-ui.css?v=3" in page and "/ui/isr-ui.js?v=3" in page and 'class=\'isr-bar\'' in page
+        assert s == 200 and "/ui/isr-ui.css?v=4" in page and "/ui/isr-ui.js?v=4" in page and 'class=\'isr-bar\'' in page
         assert "id='isr-status'" in page and "isr-more" in page and "No packs" in page
     finally:
         srv.shutdown(); srv.server_close()
@@ -91,8 +91,8 @@ def test_board_page(launcher):
     s, _, html = get(launcher, "/")
     html = html.decode()
     assert s == 200
-    assert html.index("/ui/isr-ui.css?v=3") < html.index("/launcher.css?v=")   # kit first, own CSS after
-    assert "/ui/isr-ui.js?v=3" in html and 'id="isr-status"' in html and 'href="/engineer"' in html
+    assert html.index("/ui/isr-ui.css?v=4") < html.index("/launcher.css?v=")   # kit first, own CSS after
+    assert "/ui/isr-ui.js?v=4" in html and 'id="isr-status"' in html and 'href="/engineer"' in html
     assert "<h1>ISTAR kit</h1>" in html and "/board.js?v=" in html and "/app.js" not in html
     board = (STATIC / "board.js").read_text()
     assert "/api/switch" not in board and "doSwitch" not in board             # switching is engineer-only
@@ -106,7 +106,7 @@ def test_board_page(launcher):
 def test_engineer_page(launcher):
     s, _, html = get(launcher, "/engineer")
     html = html.decode()
-    assert s == 200 and "/ui/isr-ui.css?v=3" in html and "/ui/isr-ui.js?v=3" in html and 'id="isr-status"' in html
+    assert s == 200 and "/ui/isr-ui.css?v=4" in html and "/ui/isr-ui.js?v=4" in html and 'id="isr-status"' in html
     assert "<h1>ISTAR kit</h1>" in html
     assert 'href="/"' in html and "/common.js" in html and "/app.js" in html
     for sect in ("Pi health", "Profiles", "Self-check", "Services on the Pi", "Mac stations", "Offline maps",
@@ -257,11 +257,11 @@ def test_tak_clients(monkeypatch):
 
 def test_kit_v3_hidden_rule_and_targets():
     css = (REPO / "ui" / "isr-ui.css").read_text()
-    assert css.startswith("/* isr-ui.css v3") and "[hidden] { display: none !important; }" in css
-    assert (REPO / "ui" / "isr-ui.js").read_text().startswith("/* isr-ui.js v3")
+    assert css.startswith("/* isr-ui.css v4") and "[hidden] { display: none !important; }" in css
+    assert (REPO / "ui" / "isr-ui.js").read_text().startswith("/* isr-ui.js v4")
     assert "blufor-tracker:bridge/web/static" in (REPO / "tools" / "sync-ui-kit.sh").read_text()
     spec = (REPO / "ui" / "UI-SPEC.md").read_text()
-    assert "isr-ui.css?v=3" in spec and "[hidden]" in spec
+    assert "isr-ui.css?v=4" in spec and "[hidden]" in spec
 
 
 def test_sync_ui_kit_check_and_copy(tmp_path):
@@ -279,18 +279,18 @@ def test_sync_ui_kit_check_and_copy(tmp_path):
     page.parent.mkdir(parents=True)
     page.write_text('<link rel="stylesheet" href="/static/isr-ui.css"><script src=\'/static/isr-ui.js?v=1\'></script>')
     route = root / "tac-advisor" / "advisor" / "web" / "app.py"
-    route.write_text('KIT = ["isr-ui.css", "isr-ui.js"]\nHTML = \'<link href="/static/isr-ui.css?v=3">\'\n')
+    route.write_text('KIT = ["isr-ui.css", "isr-ui.js"]\nHTML = \'<link href="/static/isr-ui.css?v=4">\'\n')
     sh = str(REPO / "tools" / "sync-ui-kit.sh")
     p = subprocess.run([sh, "--check", "--root", str(root)], capture_output=True, text=True)
     assert p.returncode == 1 and "DRIFT    tac-advisor/advisor/web/static/isr-ui.css" in p.stdout
-    assert "LINK     tac-advisor/advisor/web/templates/index.html" in p.stdout and "want ?v=3" in p.stdout
-    assert "app.py" not in p.stdout                                             # already ?v=3; bare names ignored
+    assert "LINK     tac-advisor/advisor/web/templates/index.html" in p.stdout and "want ?v=4" in p.stdout
+    assert "app.py" not in p.stdout                                             # already ?v=4; bare names ignored
     assert "ok       drone-detector/detector/web/static/isr-ui.js" in p.stdout
     assert "missing  change-detect/changedetect/web/static" in p.stdout
     p = subprocess.run([sh, "--root", str(root), "tac-advisor", "change-detect"], capture_output=True, text=True)
     assert p.returncode == 0 and "copied into change-detect/changedetect/web/static" in p.stdout
-    assert page.read_text() == ('<link rel="stylesheet" href="/static/isr-ui.css?v=3">'
-                                "<script src='/static/isr-ui.js?v=3'></script>")
+    assert page.read_text() == ('<link rel="stylesheet" href="/static/isr-ui.css?v=4">'
+                                "<script src='/static/isr-ui.js?v=4'></script>")
     assert route.read_text().startswith('KIT = ["isr-ui.css", "isr-ui.js"]')        # file names untouched
     p = subprocess.run([sh, "--check", "--root", str(root)], capture_output=True, text=True)
     assert p.returncode == 0 and "DRIFT" not in p.stdout and "missing" not in p.stdout and "LINK" not in p.stdout
@@ -388,3 +388,22 @@ def test_start_mac_announces_station(tmp_path):
         assert ann and ann[0]["retain"] and json.loads(ann[0]["payload"]) == {"host": "mac-test", "station": "hq"}
     finally:
         broker.kill()
+
+
+# ── tab reuse (kit v4): one launcher tab, one tab per tool ───────────────────
+
+def test_tabs_are_reused_by_name():
+    st = REPO / "launcher" / "static"
+    common = (st / "common.js").read_text()
+    assert 'window.name = "isr-kit"' in common and '"isr-tool-" +' in common and 'rel="opener"' in common
+    for f in ("app.js", "board.js", "common.js", "presenter.js", "map.js"):
+        js = (st / f).read_text()
+        assert "_blank" not in js and "noopener" not in js.replace("(not noopener)", ""), f    # no new tab per click
+    assert "openLink(" in (st / "app.js").read_text() and "openLink(t.href, t.unit)" in (st / "board.js").read_text()
+    for f in ("board.html", "index.html", "map.html", "presenter.html"):
+        html = (st / f).read_text()
+        assert "/common.js?v=8" in html, f                                       # sets the tab name on every page
+        assert "target=" not in html, f                                          # Board/Map/Engineer/Presenter: same tab
+    kit = (REPO / "ui" / "isr-ui.js").read_text()
+    assert kit.startswith("/* isr-ui.js v4") and 'link.target = "isr-kit"' in kit and "ISR_KIT_SAME_TAB" in kit
+    assert (REPO / "ui" / "isr-ui.css").read_text().startswith("/* isr-ui.css v4 ")

@@ -69,7 +69,7 @@ function render(st) {
     const label = s.installed ? s.active + (s.sub && s.sub !== s.active ? " (" + s.sub + ")" : "") : "not installed";
     const hbUp = s.heartbeat && s.heartbeat.state === "live";
     const link = s.port && (s.active === "active" || hbUp) && s.unit !== "isr-launcher"
-      ? '<a class="isr-btn" href="' + esc(hubLink(s.port)) + '" target="_blank" rel="noopener">Open :' + s.port + "</a>" : "";
+      ? openLink(hubLink(s.port), s.unit, "Open :" + s.port) : "";
     return '<div class="row"><div><b><span class="dot ' + cls + '"></span>' + esc(s.title) + "</b>"
       + (s.in_profile ? "" : ' <span class="mute">(not in profile)</span>')
       + '<br><small class="' + cls + '">' + esc(s.unit) + " · " + esc(label)
@@ -88,11 +88,11 @@ function render(st) {
     const t = r.tunnel;
     const d = r.direct && r.direct.url;
     const link = t && e && e.state !== "offline"
-      ? '<a class="isr-btn" href="' + esc(hubLink(t.port)) + '" target="_blank" rel="noopener">Open</a>'
+      ? openLink(hubLink(t.port), r.tool)
       : d && e && e.state !== "offline"
-      ? '<a class="isr-btn" href="' + esc(d) + '" target="_blank" rel="noopener">Open</a>'
+      ? openLink(d, r.tool)
       : e && e.url && e.state !== "offline"
-      ? '<a class="isr-btn" href="' + esc(viewerUrl(e.url)) + '" target="_blank" rel="noopener">Open</a>' : "";
+      ? openLink(viewerUrl(e.url), r.tool) : "";
     return '<div class="row"><div><b><span class="dot ' + cls + '"></span>' + esc(r.title) + "</b>"
       + (r.expected_label ? ' <span class="mute">expected on ' + esc(r.expected_label) + "</span>" : "")
       + (t ? ' <span class="ok">' + (t.via === "relay" ? "via Pi relay" : "via Pi tunnel") + "</span>" : d ? ' <span class="mute">by IP</span>' : "")

@@ -10,7 +10,7 @@ function toolCard(st, t) {
     + '<div class="tool-purpose">' + (t.running ? esc(t.purpose) : '<span class="isr-muted">Not running</span>') + "</div>"
     + '<div class="isr-muted">' + esc(t.where) + "</div>" + extra
     + '<div class="tool-actions">'
-    + (t.href ? '<a class="isr-btn" href="' + esc(t.href) + '" target="_blank" rel="noopener">Open</a>'
+    + (t.href ? openLink(t.href, t.unit)
               : '<span class="isr-btn off" aria-disabled="true">Open</span>')
     + (t.unit === "opentakserver" ? '<button class="isr-btn" id="qrbtn" type="button">Show QR</button>' : "")
     + "</div></div>";
