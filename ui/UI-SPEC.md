@@ -1,8 +1,10 @@
-# ISR kit UI spec v3 (command post, British understated)
+# ISR kit UI spec v4 (command post, British understated)
+
+v4 (2026-11-18): the Kit link opens in the launcher's named tab (`isr-kit`) instead of a new one.
 
 v3 (2026-11-17): `[hidden] { display: none !important; }`, so the `hidden` attribute hides any element,
 including ones the kit gives a display (`.isr-tag`, `.isr-btn`). Nothing else changed from v2. Re-copy
-`isr-ui.css` and `isr-ui.js` and link them as `?v=3` (`tools/sync-ui-kit.sh` does both).
+`isr-ui.css` and `isr-ui.js` and link them as `?v=4` (`tools/sync-ui-kit.sh` does both).
 
 The audience is a room watching a projector. Simplify and make every page look like one product.
 The user's complaints: too much text, things hard to find, inconsistent look, confusing status.
@@ -17,7 +19,7 @@ The user's complaints: too much text, things hard to find, inconsistent look, co
   Delete the old colours, fonts and status-chip styles.
 - No CDN or web fonts: the kit runs offline.
 - Link them with the kit version as a query string so browsers drop old copies:
-  `isr-ui.css?v=3` and `isr-ui.js?v=3` (bump with the kit version, i.e. the `vN` on line 1 of each file).
+  `isr-ui.css?v=4` and `isr-ui.js?v=4` (bump with the kit version, i.e. the `vN` on line 1 of each file).
   Do the same for your own page CSS/JS (a version or content hash).
 
 ## Tone
@@ -40,7 +42,7 @@ red only for faults or hostiles. Let the content (imagery, video, the map) carry
 
 1. Header: `<header class="isr-bar">` with the tool name (`h1`, sentence case, no ALL CAPS),
    a sub-title of 2 to 4 words, one status pill (`#isr-status`) and the "Kit" link
-   (`#isr-kit-link`) back to the launcher. See the comment at the top of `isr-ui.js` for the markup.
+   (`#isr-kit-link`) back to the launcher. From v4 it opens in the tab named `isr-kit`, which the launcher gives its own tab, so it returns to the launcher tab instead of opening another (`window.ISR_KIT_SAME_TAB = true` navigates in place). See the comment at the top of `isr-ui.js` for the markup.
 2. Status: one pill, one word (Ready / Degraded / Offline / Off). Feed it with
    `ISR.setStatus([...])`, one entry per check (AI, TAK, MQTT, camera, SDR …). Checks that the
    demo doesn't need are `optional: true`. Delete the row of separate status chips.
@@ -70,3 +72,29 @@ HTML text you changed. Keep JS dependency-free.
 - A screenshot of each page at 1280x800, before and after, saved under
   `~/Repos/isr-kit/ui-kit/screens/<repo>-<page>-{before,after}.png`.
 - Commit on your existing feature branch and push. Don't merge, don't open PRs.
+
+## Tabs (v4)
+
+One launcher tab, one tab per tool, however many times people click:
+
+- **Launcher tab.** The launcher names its tab `isr-kit` (`window.name`, set by `common.js` on the board, `/engineer`, `/map` and `/presenter`). Board, Map, Engineer and Presenter are plain links, so they stay in that tab.
+- **Tool tabs.** Each **Open** targets `isr-tool-<unit>` (e.g. `isr-tool-op-sentry`) with `rel="opener"`, so opening a tool again reuses its tab.
+- **Kit link.** The kit's Kit link targets `isr-kit` with `rel="opener"`, so it navigates the launcher tab instead of opening another one.
+- **Why `rel="opener"`:** browsers look a tab up by name only within its browsing-context group. `noopener` (and `target="_blank"`, which implies it) puts the tool tab in a new group, where the launcher's tab can't be found.
+- **A tool page opened by hand** (typed URL, bookmark): its first Kit click opens one new `isr-kit` tab. Later clicks reuse that tab.
+- **Fallback:** a page that sets `window.ISR_KIT_SAME_TAB = true` before `isr-ui.js` gets a Kit link that navigates in place.
+
+Checked (2026-11-18):
+
+| Browser | Result |
+|---|---|
+| Chrome 157 on macOS | Works. Checked with real mouse events in a two-port harness: :8050 named `isr-kit`, :8120 a tool page with the real `isr-ui.js`. Second Open: still 2 tabs. Kit from the tool: still 2 tabs, launcher tab reloaded. Map: same tab. Tool opened by hand: Kit opens one tab, then reuses it. |
+| Safari on macOS | Not checked yet. |
+| Chrome on Android (Pixel) | Not checked yet. |
+
+**Manual check** (any browser, on the kit):
+1. Open the board.
+2. Click a tool's **Open** twice. You should still have 2 tabs.
+3. On the tool page, click **Kit**. You should be back on the board tab, still with 2 tabs.
+
+If a browser opens a new tab on step 3, set `ISR_KIT_SAME_TAB` for it and note it in the table.
