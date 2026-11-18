@@ -1,0 +1,23 @@
+[Unit]
+Description=ISTAR kit offline map server (MBTiles basemaps for ATAK on :8160)
+After=network.target
+
+[Service]
+Type=simple
+User=isr-maps
+Group=isr-maps
+EnvironmentFile=-/etc/isr-kit/site.env
+EnvironmentFile=-/etc/isr-kit/hub.env
+Environment=PYTHONUNBUFFERED=1 ISR_MAPS_DIR=/var/lib/isr-maps ISR_MAPS_PORT=8160
+ExecStart=/usr/bin/python3 /opt/pi-profiles/maps/isr_maps.py
+Restart=always
+RestartSec=3
+TimeoutStopSec=10
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadOnlyPaths=/var/lib/isr-maps
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

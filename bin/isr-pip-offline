@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+# Make pip (and uv) fail fast and never touch the network while the Pi has no internet.
+#
+#   sudo isr-pip-offline on       # back up /etc/pip.conf and /etc/uv/uv.toml, write offline versions
+#   sudo isr-pip-offline off      # restore the originals exactly (Pi OS ships a piwheels pip.conf)
+#   isr-pip-offline status
+#
+# Why a config file and not just PIP_* env vars: many repo installers run pip as the Pi user via
+# `sudo -u`, which resets the environment. Every pip reads the system-wide /etc/pip.conf, whoever
+# runs it and whichever venv it's in. With no-index on, requirements that are already installed
+# resolve instantly, and missing ones fail at once instead of retrying pypi.org/piwheels for minutes.
+# `pip install --upgrade pip` just reports "already satisfied".
+#
+# bootstrap.sh calls `on` when it detects no internet (or with --offline) and `off` on exit.
+# A crashed run is repaired the next time `on` or `off` runs.
+set -euo pipefail
+ETC="${ISR_ETC_DIR:-/etc}"
+PIP_CONF="$ETC/pip.conf"
+UV_CONF="$ETC/uv/uv.toml"
+MARK="# isr-kit offline mode (isr-pip-offline) - restore with: sudo isr-pip-offline off"
+
+backup_of() { echo "$1.isr-offline-backup"; }
+absent_of() { echo "$1.isr-offline-absent"; }
+
+restore_one() {
+    local f="$1" b a
+    b=$(backup_of "$f"); a=$(absent_of "$f")
+    if [ -f "$b" ]; then mv -f "$b" "$f"; echo "restored $f"
+    elif [ -f "$a" ]; then rm -f "$f" "$a"; echo "removed offline $f (there was none before)"
+    elif [ -f "$f" ] && head -1 "$f" | grep -qF "$MARK"; then rm -f "$f"; echo "removed stray offline $f"
+    fi
+}
+
+enable_one() {   # enable_one <file> <content>
+    local f="$1" content="$2"
+    if [ -f "$f" ] && head -1 "$f" | grep -qF "$MARK"; then
+        :   # already offline (keep the backup that exists)
+    elif [ -f "$f" ]; then
+        cp -p "$f" "$(backup_of "$f")"
+    else
+        mkdir -p "$(dirname "$f")"; : > "$(absent_of "$f")"
+    fi
+    printf '%s\n%s\n' "$MARK" "$content" > "$f"
+    chmod 644 "$f"
+}
+
+case "${1:-status}" in
+    on)
+        enable_one "$PIP_CONF" '[global]
+no-index = true
+disable-pip-version-check = true
+retries = 0
+timeout = 3
+
+[install]
+no-index = true'
+        enable_one "$UV_CONF" 'offline = true'
+        echo "pip/uv offline: no index, no retries (sudo isr-pip-offline off to undo)"
+        ;;
+    off)
+        restore_one "$PIP_CONF"
+        restore_one "$UV_CONF"
+        ;;
+    status)
+        for f in "$PIP_CONF" "$UV_CONF"; do
+            if [ -f "$f" ] && head -1 "$f" | grep -qF "$MARK"; then echo "$f: OFFLINE"; else echo "$f: normal"; fi
+        done
+        ;;
+    *) sed -n '2,8p' "$0"; exit 64 ;;
+esac

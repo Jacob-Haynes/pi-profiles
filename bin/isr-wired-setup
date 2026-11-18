@@ -1,0 +1,85 @@
+#!/usr/bin/env bash
+# Configure wired Ethernet for a local-first kit (idempotent).
+#
+#   sudo isr-wired-setup                 # DEFAULT: pure link-local (direct cable Pi <-> Mac)
+#   sudo isr-wired-setup --dhcp          # router/switch cable: DHCP (10 s), never blocks boot
+#   sudo isr-wired-setup --dry-run [--iface eth0] [--apply]
+#
+# Link-local (default): ipv4.method=link-local + ipv6.method=link-local. Deterministic: both ends
+#   pick 169.254.x.y / fe80:: within seconds, there's no DHCP to wait for or flap on, and mDNS
+#   (<hostname>.local) works over the cable. On the real Pi, NM 1.42's "DHCP + link-local alongside"
+#   (ipv4.method=auto, dhcp-timeout, link-local=enabled) flapped on a direct cable and finally left
+#   eth0 with no address at all, so it's no longer the default.
+#   A router cable gets NO internet in this mode. Use --dhcp for that.
+# DHCP (--dhcp): ipv4.method=auto, dhcp-timeout 10, may-fail yes, ipv4.link-local fallback
+#   (NM >= 1.52) or enabled (1.42), ipv6.method=auto, may-fail yes.
+#
+# Every ethernet profile is set this way (or "isr-wired" is created on --iface). Changes apply when a
+# profile next activates (a reboot is simplest). --apply re-activates now, which drops an SSH session
+# that's running over that cable. Also caps NetworkManager-wait-online at 15 s (drop-in).
+set -uo pipefail
+DRY=0; IFACE=eth0; MODE=linklocal; APPLY=0
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --dry-run) DRY=1; shift ;;
+        --iface) IFACE="${2:?}"; shift 2 ;;
+        --dhcp) MODE=dhcp; shift ;;
+        --link-local) MODE=linklocal; shift ;;
+        --apply) APPLY=1; shift ;;
+        -h|--help) sed -n '2,21p' "$0"; exit 0 ;;
+        *) echo "unknown option $1" >&2; exit 64 ;;
+    esac
+done
+case "$IFACE" in *[!A-Za-z0-9_.-]*) echo "bad --iface" >&2; exit 64 ;; esac
+SYSTEMD_DIR="${ISR_SYSTEMD_DIR:-/etc/systemd/system}"
+run() { if [ "$DRY" -eq 1 ]; then echo "  [dry-run] $*"; else "$@"; fi; }
+
+command -v nmcli >/dev/null 2>&1 || { echo "nmcli not found; skipping wired setup"; exit 0; }
+[ "${ISR_SKIP_ROOT_CHECK:-0}" = "1" ] || [ "$(id -u)" -eq 0 ] || [ "$DRY" -eq 1 ] || { echo "run as root" >&2; exit 1; }
+
+ver=$(nmcli --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+(\.[0-9]+)?' | head -1)
+major=${ver%%.*}; rest=${ver#*.}; minor=${rest%%.*}
+ge() { [ "${major:-0}" -gt "$1" ] || { [ "${major:-0}" -eq "$1" ] && [ "${minor:-0}" -ge "$2" ]; }; }
+HAS_LL_PROP=0; ge 1 40 && HAS_LL_PROP=1          # ipv4.link-local exists since NM 1.40
+
+if [ "$MODE" = "linklocal" ]; then
+    SETTINGS=(ipv4.method link-local ipv4.dhcp-timeout 0 ipv4.may-fail yes ipv6.method link-local ipv6.may-fail yes)
+    [ "$HAS_LL_PROP" -eq 1 ] && SETTINGS+=(ipv4.link-local auto)
+else
+    LL=enabled; ge 1 52 && LL=fallback
+    SETTINGS=(ipv4.method auto ipv4.dhcp-timeout 10 ipv4.may-fail yes ipv6.method auto ipv6.may-fail yes)
+    [ "$HAS_LL_PROP" -eq 1 ] && SETTINGS+=(ipv4.link-local "$LL")
+fi
+echo "NetworkManager ${ver:-?}: wired mode $MODE (${SETTINGS[*]})"
+
+profiles=$(nmcli -t -f NAME,TYPE connection show 2>/dev/null | awk -F: '$2=="802-3-ethernet" || $2=="ethernet" {print $1}')
+if [ -z "$profiles" ]; then
+    echo "  no ethernet profile: creating isr-wired on $IFACE"
+    run nmcli connection add type ethernet ifname "$IFACE" con-name isr-wired autoconnect yes "${SETTINGS[@]}"
+    profiles="isr-wired"
+else
+    printf '%s\n' "$profiles" | while IFS= read -r p; do
+        [ -n "$p" ] || continue
+        echo "  $p: $MODE"
+        run nmcli connection modify "$p" "${SETTINGS[@]}" || echo "  WARNING: could not modify '$p'"
+    done
+fi
+if [ "$APPLY" -eq 1 ]; then
+    printf '%s\n' "$profiles" | while IFS= read -r p; do
+        [ -n "$p" ] && { echo "  re-activating $p (drops an SSH session over this cable)"; run nmcli connection up "$p" || true; }
+    done
+fi
+
+dropin="$SYSTEMD_DIR/NetworkManager-wait-online.service.d"
+if [ "$DRY" -eq 1 ]; then
+    echo "  [dry-run] write $dropin/isr-kit.conf (NM_ONLINE_TIMEOUT=15)"
+else
+    mkdir -p "$dropin"
+    cat > "$dropin/isr-kit.conf" <<'CONF'
+# isr-kit: local-first. Don't hold the boot for 60 s when a cable has no DHCP server.
+[Service]
+Environment=NM_ONLINE_TIMEOUT=15
+CONF
+    systemctl daemon-reload 2>/dev/null || true
+fi
+[ "$APPLY" -eq 1 ] || echo "Applies when each profile next activates (a reboot is simplest; --apply does it now)."

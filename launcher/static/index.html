@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0e1012">
+<title>ISTAR kit engineer</title>
+<link rel="stylesheet" href="/ui/isr-ui.css?v=3">
+<link rel="stylesheet" href="/launcher.css?v=8">
+<script src="/ui/isr-ui.js?v=3"></script>
+</head>
+<body class="eng">
+<header class="isr-bar">
+  <h1>ISTAR kit</h1><span class="isr-sub">Engineer</span>
+  <div class="isr-right">
+    <button class="isr-pill" id="isr-status" type="button">Starting</button>
+    <a class="isr-kit-link" href="/">Board</a>
+    <a class="isr-kit-link" href="/map">Map</a>
+  </div>
+  <div class="isr-status-list" id="isr-status-list"></div>
+</header>
+<main>
+  <div id="banner" hidden></div>
+
+  <section class="isr-card"><h2>Overview</h2>
+    <div class="kv"><span>Profile <b id="active">…</b> <span id="switching"></span></span>
+      <span>AI <b id="ai"></b></span><span id="llm"></span><span id="mqtt"></span><span id="net"></span>
+      <span class="isr-muted" id="host"></span></div></section>
+
+  <section class="isr-card"><h2>Pi health</h2>
+    <div class="stat" id="clock"></div><div class="stat" id="power"></div>
+    <div class="eng-grid" id="health"></div></section>
+
+  <section class="isr-card"><h2>Profiles</h2>
+    <div id="profiles"></div>
+    <details class="isr-more"><summary>Details</summary>Tap a profile to switch. Tools that aren't in the new profile stop first; OTS and the hotspot stay up.</details></section>
+
+  <section class="isr-card"><h2>Self-check</h2>
+    <div class="btn-row"><button class="isr-btn primary" id="chk" type="button">Run checks</button>
+      <button class="isr-btn" id="chkmesh" type="button">Run checks and radio check</button></div>
+    <div id="checkout"></div>
+    <details class="isr-more"><summary>Details</summary>blufor-tracker's bridge.check: TAK send and receive through OTS, MQTT login, heartbeats. The radio check also transmits a short text on the mesh.</details></section>
+
+  <section class="isr-card"><h2>Services on the Pi</h2><div id="services"></div></section>
+  <section class="isr-card"><h2>Mac stations</h2><div id="remote"></div></section>
+
+  <section class="isr-card"><h2>Offline maps</h2>
+    <div id="maps"></div>
+    <label class="isr-muted"><input type="checkbox" id="pushtiles"> Include the .mbtiles when pushing</label>
+    <div id="pushout"></div>
+    <details class="isr-more"><summary>Details</summary>Push sends the map to every ATAK device on the TAK server as a data package. Include the .mbtiles (large) for phones that leave the Pi. By hand: Add to ATAK, then in ATAK ☰ › Import › Local SD › Downloads › the .xml, then Maps &amp; Favorites. Download gets the .mbtiles itself.</details></section>
+
+  <section class="isr-card"><h2>Devices</h2><div id="devices"></div></section>
+
+  <section class="isr-card"><h2>Add a mesh node</h2>
+    <button class="isr-btn" id="chbtn" type="button">Show channel QR</button>
+    <div id="channel" class="qr-inline"></div>
+    <details class="isr-more"><summary>Details</summary>Shows the bridge radio's channel as a QR for the Meshtastic app. It contains the channel key, so it needs the PIN. Show it only to people joining the mesh.</details></section>
+
+  <section class="isr-card"><details class="isr-more"><summary>Last switch log</summary><pre id="log"></pre></details></section>
+</main>
+<script src="/common.js?v=7"></script>
+<script src="/app.js?v=8"></script>
+</body>
+</html>

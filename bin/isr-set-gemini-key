@@ -1,0 +1,88 @@
+#!/usr/bin/env bash
+# Set the Gemini API key ONCE for every ISTAR kit tool.
+#
+#   sudo isr-set-gemini-key                       # prompts, input hidden
+#   sudo isr-set-gemini-key --model gemini-3.6-flash
+#   sudo isr-set-gemini-key --from-file /path/key.txt    # first line of file
+#   sudo isr-set-gemini-key --clear               # remove key (offline demo)
+#
+# Writes GEMINI_API_KEY (and GEMINI_MODEL if given) into /etc/<repo>.env for every repo in
+# repos.conf, creating the file if needed, mode 600 root:root. The key is never passed on
+# a command line (so it is not visible in `ps` or shell history) and is never printed.
+# Restart running tools afterwards:  sudo pi-profiles --restart
+set -euo pipefail
+
+ROOT="${PI_PROFILES_ROOT:-/opt/pi-profiles}"
+ETC="${ISR_ETC_DIR:-/etc}"
+REPOS_CONF="${ISR_REPOS_CONF:-$ROOT/repos.conf}"
+MODEL=""
+FROM_FILE=""
+CLEAR=0
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --model) MODEL="${2:?--model needs a value}"; shift 2 ;;
+        --from-file) FROM_FILE="${2:?--from-file needs a path}"; shift 2 ;;
+        --clear) CLEAR=1; shift ;;
+        -h|--help) sed -n '2,14p' "$0"; exit 0 ;;
+        *) echo "unknown option: $1" >&2; exit 64 ;;
+    esac
+done
+
+if [ "${ISR_SKIP_ROOT_CHECK:-0}" != "1" ] && [ "$(id -u)" -ne 0 ]; then
+    echo "Run as root: sudo isr-set-gemini-key" >&2
+    exit 1
+fi
+[ -f "$REPOS_CONF" ] || { echo "repos.conf not found at $REPOS_CONF" >&2; exit 1; }
+case "$MODEL" in *[!A-Za-z0-9._-]*) echo "invalid model name" >&2; exit 64 ;; esac
+
+KEY=""
+if [ "$CLEAR" -eq 0 ]; then
+    if [ -n "$FROM_FILE" ]; then
+        KEY=$(head -1 "$FROM_FILE" | tr -d '[:space:]')
+    elif [ -t 0 ]; then
+        printf "Gemini API key (input hidden): " >&2
+        IFS= read -rs KEY; echo >&2
+    else
+        IFS= read -r KEY || true
+    fi
+    KEY=$(printf '%s' "$KEY" | tr -d '[:space:]')
+    [ -n "$KEY" ] || { echo "no key given" >&2; exit 1; }
+    case "$KEY" in *[!A-Za-z0-9_-]*) echo "key contains unexpected characters; not written" >&2; exit 1 ;; esac
+fi
+
+umask 077
+count=0
+for repo in $(awk '!/^[[:space:]]*(#|$)/ && $4 != "mac" {print $1}' "$REPOS_CONF"); do
+    f="$ETC/$repo.env"
+    tmp=$(mktemp "$ETC/.$repo.env.XXXXXX")
+    [ -f "$f" ] && grep -v -E '^[[:space:]]*(export[[:space:]]+)?GEMINI_API_KEY=' "$f" \
+        | { if [ -n "$MODEL" ]; then grep -v -E '^[[:space:]]*(export[[:space:]]+)?GEMINI_MODEL='; else cat; fi; } \
+        > "$tmp" || true
+    # awk reads the key from the environment, never argv
+    if [ "$CLEAR" -eq 0 ]; then
+        ISR_KEY="$KEY" awk 'BEGIN { print "GEMINI_API_KEY=" ENVIRON["ISR_KEY"] }' >> "$tmp"
+    fi
+    [ -n "$MODEL" ] && echo "GEMINI_MODEL=$MODEL" >> "$tmp"
+    chmod 600 "$tmp"
+    [ "$(id -u)" -eq 0 ] && chown root:root "$tmp"
+    mv -f "$tmp" "$f"
+    count=$((count + 1))
+done
+unset KEY
+
+# Non-secret marker for the launcher's AI tier (it can't read the 600 env files).
+FLAG="${ISR_GEMINI_FLAG:-$ETC/isr-kit/gemini.configured}"
+mkdir -p "$(dirname "$FLAG")"
+if [ "$CLEAR" -eq 1 ]; then
+    rm -f "$FLAG"
+else
+    (umask 022; echo "model=${MODEL:-default} set=$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$FLAG")
+fi
+
+if [ "$CLEAR" -eq 1 ]; then
+    echo "Removed GEMINI_API_KEY from $count env files in $ETC (tools fall back to offline mode)."
+else
+    echo "Wrote GEMINI_API_KEY to $count env files in $ETC (mode 600)${MODEL:+, GEMINI_MODEL=$MODEL}."
+fi
+echo "Restart the running tools to pick it up:  sudo pi-profiles --restart"

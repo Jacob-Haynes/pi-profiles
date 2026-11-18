@@ -1,0 +1,73 @@
+#!/usr/bin/env bash
+# The BFT-TAK hotspot's band. Default 5 GHz channel 36: on 2.4 GHz the Pi's brcmfmac AP lost most
+# Pi->Mac traffic to a Mac in Wi-Fi power save, and 5 GHz is quieter and faster (866 Mbit/s measured).
+#
+#   sudo isr-hotspot-band            apply the saved choice (default 5 GHz ch36); idempotent
+#   sudo isr-hotspot-band 5          5 GHz, channel 36 (needs a Wi-Fi country, default GB)
+#   sudo isr-hotspot-band 2.4        2.4 GHz, channel 7, for phones or radios without 5 GHz
+#   ... --apply                      restart the hotspot now (every client drops for a few seconds)
+#   isr-hotspot-band --status
+#
+# The choice is saved in /etc/isr-kit/hotspot.env (ISR_HOTSPOT_BAND=a|bg), so re-running bootstrap keeps
+# it. blufor-tracker's installer resets the hotspot to 2.4 GHz ch7, so bootstrap runs this after it.
+# A change applies when the hotspot next starts (reboot, or --apply).
+set -uo pipefail
+CON="${PI_PROFILES_HOTSPOT:-bft-hotspot}"
+CONF="${ISR_KIT_CONF:-/etc/isr-kit}/hotspot.env"
+COUNTRY="${ISR_WIFI_COUNTRY:-GB}"
+WANT="" APPLY=0 STATUS=0
+while [ $# -gt 0 ]; do
+    case "$1" in
+        5|5g|5ghz|a) WANT="a" ;;
+        2.4|2|2g|2.4ghz|bg) WANT="bg" ;;
+        --apply) APPLY=1 ;;
+        --status) STATUS=1 ;;
+        -h|--help) sed -n '2,13p' "$0"; exit 0 ;;
+        *) echo "usage: isr-hotspot-band [5|2.4] [--apply] | --status" >&2; exit 64 ;;
+    esac
+    shift
+done
+case "$COUNTRY" in [A-Z][A-Z]) ;; *) echo "bad ISR_WIFI_COUNTRY" >&2; exit 64 ;; esac
+command -v nmcli >/dev/null 2>&1 || { echo "  nmcli not found: hotspot band unchanged"; exit 0; }
+if ! nmcli -t -f NAME connection show 2>/dev/null | grep -Fxq "$CON"; then
+    echo "  no '$CON' connection yet (blufor-tracker creates it): hotspot band unchanged"; exit 0
+fi
+cur=$(nmcli -g 802-11-wireless.band,802-11-wireless.channel connection show "$CON" 2>/dev/null | tr '\n' ' ')
+cur_band=$(echo "$cur" | awk '{print $1}') cur_ch=$(echo "$cur" | awk '{print $2}')
+if [ "$STATUS" -eq 1 ]; then echo "$CON: band ${cur_band:-?} channel ${cur_ch:-?}"; exit 0; fi
+[ "${ISR_SKIP_ROOT_CHECK:-0}" = "1" ] || [ "$(id -u)" -eq 0 ] || { echo "run as root (sudo)" >&2; exit 1; }
+
+saved=$(sed -n 's/^ISR_HOTSPOT_BAND=//p' "$CONF" 2>/dev/null | head -1)
+if [ -n "$WANT" ]; then
+    mkdir -p "$(dirname "$CONF")"
+    printf '# isr-kit hotspot band (isr-hotspot-band): a = 5 GHz ch36, bg = 2.4 GHz ch7\nISR_HOTSPOT_BAND=%s\n' "$WANT" > "$CONF"
+else
+    WANT="${saved:-a}"
+fi
+if [ "$WANT" = a ]; then CH=36; else CH=7; fi
+
+if [ "$WANT" = a ]; then
+    # 5 GHz channels need a regulatory domain. Set it only if none is set (never override one).
+    reg=""
+    if command -v raspi-config >/dev/null 2>&1; then reg=$(raspi-config nonint get_wifi_country 2>/dev/null); fi
+    [ -n "$reg" ] || reg=$(iw reg get 2>/dev/null | awk '/^country/ {sub(":", "", $2); print $2; exit}')
+    if [ -z "$reg" ] || [ "$reg" = "00" ]; then
+        if command -v raspi-config >/dev/null 2>&1; then raspi-config nonint do_wifi_country "$COUNTRY" >/dev/null 2>&1
+        else iw reg set "$COUNTRY" 2>/dev/null; fi
+        echo "  Wi-Fi country set to $COUNTRY (needed for 5 GHz)"
+    fi
+fi
+
+if [ "$cur_band" = "$WANT" ] && [ "$cur_ch" = "$CH" ]; then
+    echo "  hotspot already $([ "$WANT" = a ] && echo "5 GHz" || echo "2.4 GHz") channel $CH"
+else
+    nmcli connection modify "$CON" 802-11-wireless.band "$WANT" 802-11-wireless.channel "$CH" \
+        || { echo "  WARNING: could not set the hotspot band" >&2; exit 1; }
+    echo "  hotspot set to $([ "$WANT" = a ] && echo "5 GHz" || echo "2.4 GHz") channel $CH (was ${cur_band:-?}/${cur_ch:-?})"
+    [ "$APPLY" -eq 1 ] || echo "  applies when the hotspot next starts: reboot, or sudo isr-hotspot-band --apply (clients drop briefly)"
+fi
+if [ "$APPLY" -eq 1 ]; then
+    echo "  restarting $CON (clients reconnect in a few seconds)"
+    nmcli connection up "$CON" >/dev/null 2>&1 || echo "  WARNING: could not restart $CON" >&2
+fi
+exit 0

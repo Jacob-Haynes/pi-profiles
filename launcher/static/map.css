@@ -1,0 +1,95 @@
+/* /map (common operating picture): layout only. Colours and type come from /ui/isr-ui.css (kit v2). */
+body.cop { display: flex; flex-direction: column; height: 100vh; height: 100dvh; overflow: hidden; }
+.cop-wrap { flex: 1; min-height: 0; display: flex; }
+.cop-map-box { position: relative; flex: 1; min-width: 0; }
+#map { position: absolute; inset: 0; background: var(--bg); }
+.cop-side { width: 320px; flex: none; display: flex; flex-direction: column; border-left: 1px solid var(--line);
+  background: var(--panel); min-height: 0; }
+.cop-block { padding: 10px 14px; border-bottom: 1px solid var(--line); }
+.cop-block .isr-section { margin: 0 0 6px; }
+.cop-layers { display: grid; grid-template-columns: max-content max-content; gap: 7px 18px; font-size: 13px; }
+.cop-layers label, .cop-follow { display: flex; align-items: center; gap: 6px; cursor: pointer; white-space: nowrap; }
+.cop-layers .aff, .cop-layers .cop-key-line { margin-right: 0; }
+.cop-layers input, .cop-follow input { margin: 0; }
+.cop-actions { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 10px; font-size: 13px; }
+.cop-actions .isr-btn { min-height: 32px; padding: 4px 12px; font-size: 15px; }
+.cop-list-box { flex: 1; min-height: 0; overflow-y: auto; }
+.cop-list li { cursor: pointer; padding: 6px 0; gap: 8px; align-items: center; }
+.cop-list li:hover .cs { color: var(--accent); }
+.cop-list li.new { animation: cop-new 3s ease-out; }
+@keyframes cop-new { from { background: rgba(201,167,94,.18); } to { background: transparent; } }
+.cop-list li.fading { opacity: .5; }
+.cop-list .who { min-width: 0; flex: 1; display: flex; flex-direction: column; }
+.cop-list .cs { font: 500 15px/1.15 var(--label); letter-spacing: .02em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cop-list .what { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cop-list .t { min-width: 0; text-align: right; font-family: var(--mono); }
+.cop-list .isr-tag { font-size: 9px; padding: 1px 4px; }
+.cop-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; color: var(--muted); }
+.cop-legend > span { display: inline-flex; align-items: center; }
+.aff.sq { outline: 1px solid var(--bg); }
+.cop-key-line, .cop-key-lead, .cop-key-ring, .cop-key-fade { display: inline-block; width: 16px; height: 9px; margin-right: 6px; flex: none; }
+.cop-key-line { border-top: 2px dashed var(--unknown); height: 0; margin-top: 2px; }
+.cop-key-lead { border-top: 2px solid var(--text); height: 0; margin-top: 2px; }
+.cop-key-ring { border: 1px dashed var(--unknown); border-radius: 50%; width: 11px; height: 11px; }
+.cop-key-fade { background: var(--hostile); opacity: .3; width: 9px; }
+.cop-readout { position: absolute; z-index: 500; right: 10px; bottom: 10px; background: rgba(14,16,18,.86);
+  border: 1px solid var(--line); padding: 5px 9px; font-size: 13px; pointer-events: none; }
+.cop-readout .isr-mono { font: 400 14px/1 var(--mono); color: var(--text); letter-spacing: .03em; }
+.cop-note { position: absolute; z-index: 500; left: 50%; top: 12px; transform: translateX(-50%); max-width: 90%;
+  background: rgba(14,16,18,.9); border: 1px solid var(--warn); color: var(--warn); padding: 6px 12px; font-size: 13px; }
+
+/* Leaflet in the kit's colours */
+.leaflet-container { background: var(--bg); font: 13px/1.4 var(--mono); }
+.leaflet-tile-pane { filter: brightness(.82) saturate(.75); }
+.leaflet-bar a, .leaflet-bar a:hover { background: var(--panel); color: var(--text); border-bottom-color: var(--line); }
+.leaflet-bar { border: 1px solid var(--line) !important; box-shadow: none !important; border-radius: 0 !important; }
+.leaflet-bar a:first-child, .leaflet-bar a:last-child { border-radius: 0 !important; }
+.leaflet-control-attribution { background: rgba(14,16,18,.75) !important; color: var(--muted) !important; font-size: 10px;
+  max-width: 55vw; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.leaflet-control-attribution a { color: var(--muted); }
+.leaflet-control-scale-line { background: rgba(14,16,18,.8); color: var(--text); border-color: var(--muted); font: 11px var(--mono);
+  text-shadow: none; }
+.leaflet-bottom.leaflet-left { bottom: 18px; }
+.leaflet-popup-content-wrapper, .leaflet-popup-tip { background: var(--panel); color: var(--text); border-radius: 0;
+  border: 1px solid var(--line-hi); box-shadow: none; }
+.leaflet-popup-content { margin: 10px 12px; font-size: 13px; }
+.leaflet-container a.leaflet-popup-close-button { color: var(--muted); }
+.cop-pop b { font: 500 17px/1.2 var(--label); letter-spacing: .02em; display: block; margin-bottom: 4px; }
+.cop-pop .kv { font-size: 12px; gap: 2px 12px; }
+.cop-pop .rem { color: var(--muted); font-size: 12px; margin-top: 6px; max-height: 120px; overflow: auto; }
+
+/* Markers: the APP-6 symbol, a small mono callsign label, SIM/REC tag */
+.cop-sym { background: none; border: 0; }
+.cop-sym .s { position: absolute; left: 0; top: 0; line-height: 0; }
+.cop-sym.fading { opacity: .35; }
+.leaflet-tooltip.cop-tip { background: transparent; border: 0; box-shadow: none; padding: 0; color: var(--text);
+  font: 500 11px/1.1 var(--mono); letter-spacing: .02em; text-shadow: 0 0 3px #000, 0 0 2px #000; white-space: nowrap; }
+.leaflet-tooltip.cop-tip::before { display: none; }
+.cop-tip .isr-tag { font-size: 8px; padding: 0 3px; margin-left: 4px; background: rgba(14,16,18,.7); text-shadow: none; }
+.cop-badge { background: none; border: 0; width: auto !important; height: auto !important; }
+.cop-badge-box { background: rgba(14,16,18,.88); border: 1px solid var(--line-hi); padding: 2px 7px; font: 500 11px/1.45 var(--mono);
+  color: var(--text); white-space: nowrap; cursor: pointer; }
+.cop-badge-box .fading { opacity: .45; }
+@media (max-width: 760px) { .cop-badge-box { white-space: normal; width: max-content; max-width: 52vw; } }
+.cop-badge-box .isr-tag { font-size: 8px; padding: 0 3px; margin-left: 3px; }
+.cop-badge-list > div { padding: 5px 0; border-top: 1px solid var(--line); font-size: 12px; }
+.cop-badge-list b { display: inline; font: 500 14px/1.2 var(--label); margin: 0; }
+.cop-sym.emergency .s { outline: 2px solid var(--bad); outline-offset: 2px; }
+
+@media (max-width: 760px) {
+  body.cop { height: auto; overflow: auto; }
+  .cop-wrap { flex-direction: column; }
+  .cop-map-box { flex: none; height: 62vh; height: 62dvh; }
+  .cop-side { width: auto; border-left: 0; border-top: 1px solid var(--line); }
+  .cop-list-box { max-height: none; overflow: visible; }
+}
+
+/* clusters, the bearing-only badge, the extra legend keys */
+.cop-cluster-icon { background: none; border: 0; }
+.cop-cluster { width: 30px; height: 30px; border-radius: 50%; border: 2px solid; background: rgba(14,16,18,.88);
+  display: flex; align-items: center; justify-content: center; font: 500 13px/1 var(--mono); cursor: pointer; }
+.cop-btns { display: inline-flex; gap: 8px; }
+.cop-btns .isr-btn { white-space: nowrap; padding: 4px 10px; }
+.cop-key-badge { font: 500 9px/1.3 var(--mono); border: 1px solid var(--line-hi); padding: 0 4px; margin-right: 6px; color: var(--text); }
+.cop-key-cluster { display: inline-flex; width: 14px; height: 14px; border-radius: 50%; border: 1px solid var(--hostile); color: var(--hostile);
+  font: 500 9px/1 var(--mono); align-items: center; justify-content: center; margin-right: 6px; }

@@ -1,11 +1,16 @@
 [Unit]
 Description=Pi Profile Switcher (boot)
-After=network.target
+# Local-first: the kit runs on its own hotspot, OTS and broker, so it must NOT wait for
+# network-online.target. With a direct Ethernet cable to a Mac (no DHCP server),
+# NetworkManager-wait-online would otherwise hold the boot for its full timeout.
+After=NetworkManager.service
+Wants=NetworkManager.service
 
 [Service]
 Type=oneshot
 RemainAfterExit=yes
 ExecStart=/opt/pi-profiles/switch.sh --boot
+TimeoutStartSec=600
 
 [Install]
 WantedBy=multi-user.target

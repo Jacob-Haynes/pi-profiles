@@ -1,0 +1,38 @@
+#!/bin/bash
+# Privileged helper for the launcher. The ONLY thing the isr-launcher user may run as
+# root (see deploy/isr-launcher.sudoers). It accepts exactly one argument: a profile
+# name made of [a-z0-9-] that has a file in profiles.d. Then it starts switch.sh as a
+# transient systemd unit, so the switch survives even if the launcher restarts.
+# The helper never runs anything else, and never puts its argument through a shell.
+set -euo pipefail
+export PATH=/usr/sbin:/usr/bin:/sbin:/bin
+umask 022
+
+ROOT=/opt/pi-profiles
+LOG=/var/log/pi-profiles-switch.log
+
+if [ "$#" -ne 1 ]; then
+    echo "usage: isr-switch-helper <profile>" >&2
+    exit 64
+fi
+name="$1"
+case "$name" in
+    ''|-*|*[!a-z0-9-]*) echo "invalid profile name" >&2; exit 65 ;;
+esac
+if [ "${#name}" -gt 48 ] || [ ! -f "$ROOT/profiles.d/$name.conf" ]; then
+    echo "unknown profile" >&2
+    exit 66
+fi
+if "$ROOT/switch.sh" --check "$name" >/dev/null 2>&1; then :; else
+    echo "profile rejected by switch.sh --check (camera limit?)" >&2
+    exit 67
+fi
+
+touch "$LOG"; chmod 644 "$LOG"
+echo "=== $(date -u +%Y-%m-%dT%H:%M:%SZ) launcher requested: $name" >> "$LOG"
+# A fixed unit name means a second tap while a switch runs fails cleanly.
+exec systemd-run --quiet --collect --no-block \
+    --unit=pi-profiles-switch \
+    --property=StandardOutput=append:"$LOG" \
+    --property=StandardError=append:"$LOG" \
+    "$ROOT/switch.sh" "$name"

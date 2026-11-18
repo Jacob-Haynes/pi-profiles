@@ -1,0 +1,16 @@
+[Unit]
+Description=Publish isr-pi.local -> hotspot IP over mDNS (avahi)
+After=avahi-daemon.service NetworkManager.service
+Requires=avahi-daemon.service
+
+[Service]
+Type=simple
+EnvironmentFile=-/etc/isr-kit/hub.env
+Environment=ISR_HUB_NAME=isr-pi ISR_HUB_IP=192.168.4.1
+# -R: no reverse (PTR) record, so it can't clash with the Pi's own hostname record.
+ExecStart=/bin/sh -c 'exec /usr/bin/avahi-publish -a -R "$ISR_HUB_NAME.local" "$ISR_HUB_IP"'
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

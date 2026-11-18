@@ -1,0 +1,22 @@
+[Unit]
+Description=ISTAR kit launcher (profile switcher UI on :8050)
+After=network.target
+
+[Service]
+Type=simple
+User=isr-launcher
+Group=isr-launcher
+SupplementaryGroups=video
+EnvironmentFile=-/etc/isr-launcher.env
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/usr/bin/python3 /opt/pi-profiles/launcher/isr_launcher.py
+Restart=always
+RestartSec=3
+# Light hardening only. The sudo'd helper runs inside this unit's mount namespace and
+# must write /var/log and talk to systemd, so ProtectSystem/NoNewPrivileges stay off.
+PrivateTmp=yes
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+
+[Install]
+WantedBy=multi-user.target

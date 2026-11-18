@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0e1012">
+<title>ISTAR kit</title>
+<link rel="stylesheet" href="/ui/isr-ui.css?v=3">
+<link rel="stylesheet" href="/launcher.css?v=8">
+<script src="/ui/isr-ui.js?v=3"></script>
+</head>
+<body class="board">
+<header class="isr-bar">
+  <h1>ISTAR kit</h1><span class="isr-sub" id="sub">Starting</span><span class="isr-tag board-mode" id="mode" hidden></span>
+  <div class="isr-right">
+    <button class="isr-pill" id="isr-status" type="button">Starting</button>
+    <a class="isr-kit-link" href="/presenter">Presenter</a>
+    <a class="isr-kit-link" href="/map">Map</a>
+    <a class="isr-kit-link" href="/engineer">Engineer</a>
+  </div>
+  <div class="isr-status-list" id="isr-status-list"></div>
+</header>
+<main>
+  <div id="banner" hidden></div>
+  <div id="board"></div>
+</main>
+<div id="qr" class="qr-overlay" hidden>
+  <div class="isr-card qr-box">
+    <div class="qr-tabs" id="qr-tabs"></div>
+    <div id="qr-img" class="qr-img"></div>
+    <div id="qr-cap" class="isr-muted qr-cap"></div>
+    <button class="isr-btn" id="qr-close" type="button">Close</button>
+  </div>
+</div>
+<script src="/common.js?v=7"></script>
+<script src="/board.js?v=7"></script>
+</body>
+</html>

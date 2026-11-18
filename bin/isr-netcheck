@@ -1,0 +1,91 @@
+#!/usr/bin/env bash
+# Check that the hub's services are reachable from the hotspot, and say why if not.
+#   isr-netcheck          report only
+#   sudo isr-netcheck --fix   if ufw is active, allow the kit's ports in on the hotspot interface
+set -uo pipefail
+IFACE="${ISR_HOTSPOT_IFACE:-wlan0}"
+HUB_IP="${ISR_HUB_IP:-192.168.4.1}"
+TCP_PORTS="1883 8087 8080 8443 8050 8060 8070 8090 8100 8110 8120 8130 8140 8150 8160 80 443"
+FIX=0; [ "${1:-}" = "--fix" ] && FIX=1
+rc=0
+ok() { printf "  ok    %s\n" "$*"; }
+bad() { printf "  FAIL  %s\n" "$*"; rc=1; }
+note() { printf "  note  %s\n" "$*"; }
+
+echo "Hotspot"
+if command -v nmcli >/dev/null 2>&1; then
+    if nmcli -t -f NAME connection show --active 2>/dev/null | grep -Fxq bft-hotspot; then ok "bft-hotspot active"
+    else bad "bft-hotspot not active (sudo nmcli connection up bft-hotspot)"; fi
+fi
+ip -4 addr show "$IFACE" 2>/dev/null | grep -q "inet $HUB_IP/" && ok "$IFACE has $HUB_IP" || bad "$IFACE does not have $HUB_IP"
+# blufor-tracker doesn't set a DHCP pool, so NetworkManager's shared-mode default applies.
+# Contract: 192.168.4.10-192.168.4.254 (only .1 is fixed). Confirm it here on integration day.
+range=$(pgrep -a dnsmasq 2>/dev/null | grep -o -- '--dhcp-range=[^ ]*' | head -1 | sed 's/--dhcp-range=//')
+if [ -z "$range" ]; then
+    bad "no dnsmasq DHCP range found (is bft-hotspot up in shared mode?)"
+else
+    start=${range%%,*}; rest=${range#*,}; end=${rest%%,*}
+    case "$start" in "${HUB_IP%.*}".*) ok "DHCP pool $start - $end" ;; *) bad "DHCP pool $start - $end is not in ${HUB_IP%.*}.0/24" ;; esac
+    [ "$start" = "${HUB_IP%.*}.10" ] && [ "$end" = "${HUB_IP%.*}.254" ] \
+        || note "DHCP pool differs from the contract's ${HUB_IP%.*}.10-.254; update docs/CONTRACT.md (do not change blufor's address)"
+fi
+
+echo "mDNS"
+if systemctl is-active --quiet avahi-daemon; then ok "avahi-daemon running"; else bad "avahi-daemon not running"; fi
+NAME="${ISR_HUB_NAME:-isr-pi}.local"
+if command -v avahi-resolve >/dev/null 2>&1; then
+    r=$(timeout 3 avahi-resolve -4 -n "$NAME" 2>/dev/null | awk '{print $2}')
+    # avahi publishes the Pi's host record per interface. A lookup run ON the Pi may return its eth0
+    # address (for example 169.254.x.y with the backup cable in), while hotspot clients still get
+    # $HUB_IP on $IFACE. So any address that belongs to this Pi is fine, as long as $IFACE has $HUB_IP.
+    own=$(ip -4 -o addr show 2>/dev/null | awk '{split($4, a, "/"); print $2, a[1]}')
+    owner=$(printf '%s\n' "$own" | awk -v r="$r" '$2 == r {print $1; exit}')
+    hub_on_iface=$(printf '%s\n' "$own" | awk -v i="$IFACE" -v h="$HUB_IP" '$1 == i && $2 == h {print "yes"}')
+    if [ "$r" = "$HUB_IP" ]; then
+        ok "$NAME -> $r"
+    elif [ -n "$owner" ] && [ "$hub_on_iface" = "yes" ]; then
+        note "$NAME -> $r here (this Pi's $owner address: avahi answers per interface). Hotspot clients get $HUB_IP via $IFACE."
+    elif [ -n "$owner" ]; then
+        bad "$NAME -> $r ($owner), and $IFACE doesn't have $HUB_IP: hotspot clients can't resolve the hub"
+    else
+        bad "$NAME resolves to '${r:-nothing}', not one of this Pi's addresses"
+    fi
+fi
+
+echo "Listeners (must be on 0.0.0.0, :: or $HUB_IP to be reachable from the hotspot)"
+for p in 1883 8087 8050; do
+    l=$(ss -Hltn "sport = :$p" 2>/dev/null | awk '{print $4}' | tr '\n' ' ')
+    if [ -z "$l" ]; then bad "nothing listening on $p"
+    elif echo "$l" | grep -Eq "(^| )(0\.0\.0\.0|\*|\[::\]|$HUB_IP):$p"; then ok "$p: $l"
+    else bad "$p only on $l (loopback?)"; fi
+done
+
+echo "Firewall"
+if command -v ufw >/dev/null 2>&1 && ufw status 2>/dev/null | grep -q "Status: active"; then
+    note "ufw is active"
+    if [ "$FIX" -eq 1 ]; then
+        for p in $TCP_PORTS; do ufw allow in on "$IFACE" to any port "$p" proto tcp >/dev/null; done
+        ufw allow in on "$IFACE" to any port 5353 proto udp >/dev/null   # mDNS
+        ufw allow in on "$IFACE" to any port 67 proto udp >/dev/null     # DHCP
+        ufw allow in on "$IFACE" to any port 53 >/dev/null               # DNS
+        ufw allow in on "$IFACE" to any port 123 proto udp >/dev/null    # NTP (bootstrap --time-server)
+        ok "ufw: allowed kit ports in on $IFACE"
+    else
+        for p in 1883 8087; do
+            ufw status 2>/dev/null | grep -Eq "^$p(/tcp)? .*ALLOW" && ok "ufw allows $p" || bad "ufw may block $p (run: sudo isr-netcheck --fix)"
+        done
+    fi
+else
+    ok "ufw not active"
+fi
+if command -v nft >/dev/null 2>&1; then
+    if nft list ruleset 2>/dev/null | grep -Eq 'hook input .*policy drop'; then
+        bad "nftables has an input chain with policy drop; check it allows 1883/8087/8050 on $IFACE"
+    else
+        ok "no nftables input drop policy"
+    fi
+fi
+if command -v iptables >/dev/null 2>&1 && iptables -S INPUT 2>/dev/null | grep -q '^-P INPUT DROP'; then
+    bad "iptables INPUT policy is DROP"
+fi
+exit "$rc"

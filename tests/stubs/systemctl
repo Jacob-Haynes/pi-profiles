@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# Fake systemctl for tests. State lives in $STUB_DIR:
+#   installed        one unit per line
+#   state/<unit>     active | inactive | failed
+#   fail-start       units whose start fails
+#   calls            every invocation is appended here
+set -u
+echo "$*" >> "$STUB_DIR/calls"
+strip() { echo "${1%.service}"; }
+installed() { grep -Fxq "$(strip "$1")" "$STUB_DIR/installed" 2>/dev/null; }
+state() { cat "$STUB_DIR/state/$(strip "$1")" 2>/dev/null || echo inactive; }
+cmd="$1"; shift
+case "$cmd" in
+  cat)       installed "$1" ;;
+  is-active) s=$(state "$1"); echo "$s"; [ "$s" = active ] ;;
+  is-enabled) exit 1 ;;
+  start)
+    installed "$1" || { echo "Unit $1 not found" >&2; exit 5; }
+    grep -Fxq "$1" "$STUB_DIR/fail-start" 2>/dev/null && { echo failed > "$STUB_DIR/state/$1"; exit 1; }
+    echo active > "$STUB_DIR/state/$1" ;;
+  stop)      echo inactive > "$STUB_DIR/state/$(strip "$1")" ;;
+  restart)   echo active > "$STUB_DIR/state/$(strip "$1")" ;;
+  kill)      : ;;
+  show)      # ControlGroup only for units listed in cgroup-units (device-release tests)
+             u=$(strip "${!#}")
+             if grep -Fxq "$u" "$STUB_DIR/cgroup-units" 2>/dev/null; then echo "/system.slice/$u.service"; else echo ""; fi ;;
+  *)         : ;;
+esac

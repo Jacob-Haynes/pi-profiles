@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+# Cache the bridge radio's Meshtastic channel URL so the launcher can show it as a QR for
+# on-the-day node onboarding (PIN-gated: the URL contains the channel PSK).
+#
+#   sudo isr-mesh-channel                  read it (only if mesh-bridge is NOT running)
+#   sudo isr-mesh-channel --pause-bridge   stop mesh-bridge for ~15 s, read, start it again
+#   sudo isr-mesh-channel --print          also print the URL (careful: it's the channel key)
+#
+# Only mesh-bridge opens the serial port during a demo. This helper takes the port only
+# while the bridge is stopped. Writes /etc/isr-kit/mesh-channel.url (0640 root:isr-launcher).
+# Re-run it whenever the bridge radio's channel or PSK changes.
+set -uo pipefail
+export PATH=/usr/sbin:/usr/bin:/sbin:/bin
+OUT="${ISR_CHANNEL_FILE:-/etc/isr-kit/mesh-channel.url}"
+CLI="${ISR_MESHTASTIC_CLI:-/opt/blufor-tracker/.venv/bin/meshtastic}"
+PAUSE=0; PRINT=0
+for a in "$@"; do
+    case "$a" in
+        --pause-bridge) PAUSE=1 ;;
+        --print) PRINT=1 ;;
+        -h|--help) sed -n '2,12p' "$0"; exit 0 ;;
+        *) echo "unknown option $a" >&2; exit 64 ;;
+    esac
+done
+[ "$(id -u)" -eq 0 ] || [ "${ISR_SKIP_ROOT_CHECK:-0}" = "1" ] || { echo "run as root" >&2; exit 1; }
+[ -x "$CLI" ] || { echo "meshtastic CLI not found at $CLI (install blufor-tracker first)" >&2; exit 2; }
+
+port="${MESH_PORT:-}"
+[ -z "$port" ] && [ -r /etc/blufor-tracker.env ] && port=$(sed -n "s/^MESH_PORT=['\"]\{0,1\}\([^'\"]*\).*/\1/p" /etc/blufor-tracker.env | head -1)
+if [ -z "$port" ] || [ "$port" = "auto" ]; then
+    port=$(ls /dev/serial/by-id/* 2>/dev/null | head -1)
+    [ -n "$port" ] || port=$(ls /dev/ttyUSB* /dev/ttyACM* 2>/dev/null | head -1)
+fi
+[ -n "$port" ] && [ -e "$port" ] || { echo "no Meshtastic radio found (plug in the bridge Heltec)" >&2; exit 3; }
+
+restart=0
+if systemctl is-active --quiet mesh-bridge 2>/dev/null; then
+    if [ "$PAUSE" -eq 0 ]; then
+        echo "mesh-bridge is running and owns $port. Re-run with --pause-bridge (mesh is down for ~15 s)." >&2
+        exit 4
+    fi
+    echo "pausing mesh-bridge..."
+    systemctl stop mesh-bridge
+    restart=1
+    sleep 2
+fi
+
+TO=""; command -v timeout >/dev/null 2>&1 && TO="timeout 45"
+# shellcheck disable=SC2086
+info=$($TO "$CLI" --port "$port" --info 2>/dev/null)
+rc=$?
+[ "$restart" -eq 1 ] && { systemctl start mesh-bridge; echo "mesh-bridge restarted"; }
+[ "$rc" -eq 0 ] || { echo "meshtastic --info failed (rc=$rc)" >&2; exit 5; }
+
+# Prefer the URL with every channel; fall back to the primary channel.
+url=$(printf '%s\n' "$info" | sed -n 's/.*Complete URL[^:]*: *\(https:\/\/meshtastic\.org\/e\/[^ ]*\).*/\1/p' | head -1)
+[ -n "$url" ] || url=$(printf '%s\n' "$info" | sed -n 's/.*Primary channel URL: *\(https:\/\/meshtastic\.org\/e\/[^ ]*\).*/\1/p' | head -1)
+case "$url" in
+    https://meshtastic.org/e/*'#'*) ;;
+    *) echo "no channel URL in meshtastic --info output" >&2; exit 6 ;;
+esac
+
+install -d -m 755 "$(dirname "$OUT")"
+umask 027
+tmp=$(mktemp "$(dirname "$OUT")/.mesh-channel.XXXXXX")
+printf '%s\n' "$url" > "$tmp"
+chmod 640 "$tmp"
+if getent group isr-launcher >/dev/null 2>&1; then chown root:isr-launcher "$tmp"; fi
+mv -f "$tmp" "$OUT"
+echo "Cached the bridge channel in $OUT (launcher: 'Add a mesh node', PIN required)."
+[ "$PRINT" -eq 1 ] && echo "$url"
+exit 0

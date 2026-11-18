@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0e1012">
+<title>Presenter · ISTAR kit</title>
+<link rel="stylesheet" href="/ui/isr-ui.css?v=3">
+<link rel="stylesheet" href="/launcher.css?v=8">
+<script src="/ui/isr-ui.js?v=3"></script>
+</head>
+<body class="presenter">
+<header class="isr-bar">
+  <h1>Presenter</h1><span class="isr-sub" id="sub">Starting</span>
+  <div class="isr-right">
+    <span class="isr-tag" id="mode" hidden></span>
+    <a class="isr-kit-link" href="/map">Map</a>
+    <a class="isr-kit-link" href="/">Board</a>
+  </div>
+</header>
+<main>
+  <div id="banner" hidden></div>
+  <div class="pres-top">
+    <p class="isr-muted" id="how">Each button fires one event on the tool. Watch it arrive on the map and ATAK.</p>
+    <button class="isr-btn danger pres-reset" id="reset" type="button">Reset picture</button>
+  </div>
+  <div id="groups"><div class="isr-card"><span class="isr-muted">Asking the tools for their scenarios…</span></div></div>
+</main>
+<script src="/common.js?v=7"></script>
+<script src="/presenter.js?v=3"></script>
+</body>
+</html>

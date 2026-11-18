@@ -1,0 +1,84 @@
+#!/usr/bin/env bash
+# Set the Pi's clock from a trusted station (offline kit: no NTP, and the Pi 5 RTC has no battery).
+#
+#   sudo isr-set-clock --source NAME [--min-skew S] [--force] EPOCH     EPOCH = unix seconds, may be fractional
+#   isr-set-clock --status                                              JSON: now, NTP state, last set
+#
+# Sets the time only when |EPOCH - now| > --min-skew (default 2 s) and the clock is NOT NTP-synced
+# (NTP wins unless --force). Then saves it for the next boot (fake-hwclock save, and the RTC with
+# hwclock -w when there is one). Records what it did in /var/lib/isr-kit/clock.json, which the launcher
+# reads (also when it only verified the time, within --min-skew), and logs to the journal (tag isr-set-clock).
+# Callers: laptop/pi-clock.py (hq-tunnel.sh, push-to-pi.sh, setup-mac.sh --from-pi) over ssh, and the
+# launcher's "Set Pi clock from this device" button (sudoers allows exactly this helper).
+set -uo pipefail
+STATE="${ISR_CLOCK_STATE:-/var/lib/isr-kit/clock.json}"
+SRC="" MIN=2 FORCE=0 EPOCH="" STATUS=0
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --source) SRC="${2:-}"; shift 2 ;;
+        --min-skew) MIN="${2:-}"; shift 2 ;;
+        --force) FORCE=1; shift ;;
+        --status) STATUS=1; shift ;;
+        -h|--help) sed -n '2,13p' "$0"; exit 0 ;;
+        *) EPOCH="$1"; shift ;;
+    esac
+done
+
+ntp_synced() {
+    [ "${ISR_CLOCK_NTP:-}" != "" ] && { [ "$ISR_CLOCK_NTP" = "yes" ]; return; }
+    # chrony serving its own clock (bootstrap --time-server: "local stratum 10") reports itself
+    # synced; that's not a real time source, so it doesn't count.
+    if command -v chronyc >/dev/null 2>&1 && chronyc -n tracking 2>/dev/null | grep -Eq '^Reference ID +: 7F7F0101|\(LOCL\)'; then
+        return 1
+    fi
+    [ "$(timedatectl show -p NTPSynchronized --value 2>/dev/null)" = "yes" ]
+}
+
+if [ "$STATUS" -eq 1 ]; then
+    ntp=no; ntp_synced && ntp=yes
+    last=$(cat "$STATE" 2>/dev/null || echo null)
+    printf '{"now": %s, "ntp_synced": "%s", "last_set": %s}\n' "$(date +%s)" "$ntp" "$last"
+    exit 0
+fi
+
+case "$EPOCH" in ''|*[!0-9.]*|*.*.*) echo "isr-set-clock: EPOCH must be unix seconds" >&2; exit 64 ;; esac
+case "$MIN" in ''|*[!0-9.]*) echo "isr-set-clock: bad --min-skew" >&2; exit 64 ;; esac
+# A name for the log: letters, digits, space, @ . _ - : only, at most 48 characters.
+SRC=$(printf '%s' "${SRC:-unknown}" | tr -cd 'A-Za-z0-9 @._:-' | cut -c1-48)
+# Sanity: after 2024-01-01 and before 2100 (a typo or a 1970 browser must not win).
+awk -v e="$EPOCH" 'BEGIN {exit !(e > 1704067200 && e < 4102444800)}' || { echo "isr-set-clock: implausible time $EPOCH" >&2; exit 65; }
+
+now=$(date +%s.%N 2>/dev/null); case "$now" in *N|'') now=$(date +%s) ;; esac
+skew=$(awk -v e="$EPOCH" -v n="$now" 'BEGIN {printf "%.1f", e - n}')
+abs=$(awk -v s="$skew" 'BEGIN {print (s < 0 ? -s : s)}')
+record() {   # record ACTION: what the launcher shows ("set from" / "verified by"). Best effort.
+    mkdir -p "$(dirname "$STATE")" 2>/dev/null || return 0
+    local tmp
+    tmp=$(mktemp "$STATE.XXXXXX" 2>/dev/null) || return 0
+    printf '{"ts": %s, "source": "%s", "skew_s": %s, "action": "%s"}\n' "$(date +%s)" "$SRC" "$skew" "$1" > "$tmp"
+    chmod 644 "$tmp"; mv -f "$tmp" "$STATE"
+}
+
+if awk -v a="$abs" -v m="$MIN" 'BEGIN {exit !(a <= m)}'; then
+    # Within tolerance: nothing to change, but a station just confirmed the time, so the launcher
+    # can show "verified by <station>" instead of "never set".
+    record verified
+    echo "clock ok: skew ${skew}s vs $SRC (within ${MIN}s)"
+    exit 0
+fi
+if ntp_synced && [ "$FORCE" -eq 0 ]; then
+    echo "clock is NTP-synced: not changing it (skew ${skew}s vs $SRC; --force to override)"
+    exit 0
+fi
+[ "${ISR_SKIP_ROOT_CHECK:-0}" = "1" ] || [ "$(id -u)" -eq 0 ] || { echo "run as root (sudo)" >&2; exit 1; }
+if [ "${ISR_CLOCK_DRY:-0}" = "1" ]; then
+    echo "[dry] date -u -s @$EPOCH"
+else
+    date -u -s "@$EPOCH" >/dev/null || { echo "isr-set-clock: date failed" >&2; exit 1; }
+    command -v fake-hwclock >/dev/null 2>&1 && fake-hwclock save >/dev/null 2>&1
+    [ -e /dev/rtc0 ] && command -v hwclock >/dev/null 2>&1 && hwclock -w >/dev/null 2>&1
+fi
+record set
+msg="clock set from $SRC: corrected ${skew}s"
+command -v logger >/dev/null 2>&1 && logger -t isr-set-clock "$msg"
+echo "$msg"

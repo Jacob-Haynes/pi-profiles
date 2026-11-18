@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+# Where the Pi finds the HQ Mac's Ollama: over the tunnel (127.0.0.1) or by Bonjour name.
+#
+#   sudo isr-hq-mode tunnel     LLM_URL/VLM_URL -> http://127.0.0.1:11434 (laptop/hq-tunnel.sh on the Mac)
+#   sudo isr-hq-mode mdns       back to http://isr-hq.local:11434 (a Mac that advertises its name)
+#   isr-hq-mode status          show what each env file uses
+#
+# Edits /etc/isr-launcher.env and /etc/<repo>.env for the kit's repos (repos.conf), only on lines
+# that point at port 11434 on isr-hq.local or 127.0.0.1, then try-restarts the affected units.
+# Nothing else in those files changes.
+set -uo pipefail
+ETC="${ISR_ETC_DIR:-/etc}"
+ROOT="${PI_PROFILES_ROOT:-/opt/pi-profiles}"
+HQ_NAME="${ISR_HQ_HOST:-isr-hq.local}"
+MODE="${1:-status}"
+case "$HQ_NAME" in *[!A-Za-z0-9.-]*) echo "bad ISR_HQ_HOST" >&2; exit 64 ;; esac
+
+files() {
+    echo "$ETC/isr-launcher.env"
+    awk '!/^[[:space:]]*(#|$)/ && $4 != "mac" {print $1}' "$ROOT/repos.conf" 2>/dev/null \
+        | while read -r r; do echo "$ETC/$r.env"; done
+}
+units_for() {   # env file -> units to restart
+    local base; base=$(basename "$1" .env)
+    if [ "$base" = "isr-launcher" ]; then echo isr-launcher; return; fi
+    awk -v r="$base" '!/^[[:space:]]*#/ && $4 == r {print $1}' "$ROOT/services.conf" 2>/dev/null
+}
+KEYS='(LLM_URL|VLM_URL|OLLAMA_URL|OLLAMA_HOST|OLLAMA_BASE_URL|OPENAI_BASE_URL)'
+
+case "$MODE" in
+    status)
+        files | while read -r f; do
+            [ -f "$f" ] || continue
+            grep -E "^$KEYS=" "$f" 2>/dev/null | grep -E ':11434' | sed "s|^|  $(basename "$f"): |"
+        done
+        exit 0 ;;
+    tunnel) from="$HQ_NAME"; to="127.0.0.1" ;;
+    mdns) from="127.0.0.1"; to="$HQ_NAME" ;;
+    -h|--help) sed -n '2,10p' "$0"; exit 0 ;;
+    *) echo "usage: isr-hq-mode tunnel|mdns|status" >&2; exit 64 ;;
+esac
+[ "${ISR_SKIP_ROOT_CHECK:-0}" = "1" ] || [ "$(id -u)" -eq 0 ] || { echo "run as root (sudo)" >&2; exit 1; }
+
+changed=""
+while read -r f; do
+    [ -f "$f" ] || continue
+    esc_from=$(printf '%s' "$from" | sed 's/\./\\./g')
+    if grep -Eq "^$KEYS=(https?://)?$esc_from:11434" "$f"; then
+        tmp=$(mktemp "$f.XXXXXX")
+        sed -E "s#^($KEYS=(https?://)?)$esc_from:11434#\1$to:11434#" "$f" > "$tmp"
+        chmod --reference="$f" "$tmp" 2>/dev/null || chmod 600 "$tmp"
+        chown --reference="$f" "$tmp" 2>/dev/null || true
+        mv -f "$tmp" "$f"
+        echo "  $(basename "$f"): Ollama -> $to:11434"
+        changed="$changed $f"
+    fi
+done < <(files)
+[ -n "$changed" ] || { echo "  nothing to change (already $MODE)"; exit 0; }
+for f in $changed; do
+    for u in $(units_for "$f"); do systemctl try-restart "$u.service" 2>/dev/null || true; done
+done
+[ "$MODE" = "tunnel" ] && echo "  Start the tunnel on the HQ Mac: laptop/start-mac.sh start (ISR_TUNNEL=1) or laptop/hq-tunnel.sh start"
+exit 0

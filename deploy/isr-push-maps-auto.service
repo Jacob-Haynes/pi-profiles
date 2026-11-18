@@ -1,0 +1,26 @@
+# OPTIONAL (off by default): send the map pack once to each ATAK device that connects to OTS later.
+# Enable with:  echo ISR_PUSH_MAPS_PACK=<pack> | sudo tee /etc/isr-kit/push-maps.env
+#               sudo systemctl enable --now isr-push-maps-auto
+# It keeps one registered TAK connection (uid isrkit-maps-<host>, callsign "MAPS <host>"), so don't
+# run `isr-push-maps <pack>` by hand at the same moment. Remembers who got which package in
+# /var/lib/isr-push-maps/isr-push-maps.json.
+[Unit]
+Description=ISTAR kit: push the offline map pack to newly connected ATAK devices (optional)
+After=network.target isr-maps.service
+
+[Service]
+Type=simple
+DynamicUser=yes
+StateDirectory=isr-push-maps
+EnvironmentFile=/etc/isr-kit/push-maps.env
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/usr/bin/python3 /opt/pi-profiles/maps/isr_push_maps.py ${ISR_PUSH_MAPS_PACK} --auto $ISR_PUSH_MAPS_ARGS
+Restart=always
+RestartSec=10
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

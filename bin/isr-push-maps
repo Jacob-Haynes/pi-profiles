@@ -1,0 +1,10 @@
+#!/bin/sh
+# Push an offline map pack to every connected ATAK device as a TAK data package (see maps/isr_push_maps.py).
+#   isr-push-maps                 list packs
+#   isr-push-maps <pack> [--with-mbtiles] [--dry-run] [--auto]
+here=$(dirname "$(readlink -f "$0")")
+for f in "$here/../maps/isr_push_maps.py" /opt/pi-profiles/maps/isr_push_maps.py; do
+    [ -f "$f" ] && exec python3 "$f" "$@"
+done
+echo "isr-push-maps: isr_push_maps.py not found" >&2
+exit 1

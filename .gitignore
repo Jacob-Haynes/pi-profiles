@@ -1,2 +1,6 @@
 active
+last-switch
+.switch.lock/
 .DS_Store
+__pycache__/
+.pytest_cache/

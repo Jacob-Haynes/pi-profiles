@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0e1012">
+<title>COP · ISTAR kit</title>
+<link rel="stylesheet" href="/ui/isr-ui.css?v=3">
+<link rel="stylesheet" href="/vendor/leaflet.css?v=1.9.4">
+<link rel="stylesheet" href="/launcher.css?v=8">
+<link rel="stylesheet" href="/map.css?v=3">
+<script src="/ui/isr-ui.js?v=3"></script>
+</head>
+<body class="cop">
+<header class="isr-bar">
+  <h1>COP</h1><span class="isr-sub" id="sub">Common operating picture</span>
+  <div class="isr-right">
+    <button class="isr-pill" id="isr-status" type="button">Starting</button>
+    <a class="isr-kit-link" href="/">Board</a>
+    <a class="isr-kit-link" href="/engineer">Engineer</a>
+  </div>
+  <div class="isr-status-list" id="isr-status-list"></div>
+</header>
+<div class="cop-wrap">
+  <div class="cop-map-box">
+    <div id="map" aria-label="Tactical map"></div>
+    <div class="cop-readout" id="readout"><span class="isr-muted">GRID</span> <span id="grid" class="isr-mono">—</span></div>
+    <div class="cop-note" id="note" hidden></div>
+  </div>
+  <aside class="cop-side" id="side">
+    <section class="cop-block">
+      <div class="cop-layers" id="layers">
+        <label><input type="checkbox" data-layer="friend" checked><span class="aff friend"></span>Friendly</label>
+        <label><input type="checkbox" data-layer="contact" checked><span class="aff hostile"></span>Hostile / unknown</label>
+        <label><input type="checkbox" data-layer="sensor" checked><span class="aff friend sq"></span>Sensors</label>
+        <label><input type="checkbox" data-layer="bearing" checked><span class="cop-key-line"></span>Bearing lines</label>
+      </div>
+      <div class="cop-actions">
+        <label class="cop-follow"><input type="checkbox" id="follow">Auto-follow alerts</label>
+        <span class="cop-btns"><button class="isr-btn" id="clear" type="button" title="Hide what hasn't reported for 2 min, in this browser only">Clear old</button><button class="isr-btn" id="fit" type="button">Fit</button></span>
+      </div>
+    </section>
+    <section class="cop-block cop-list-box">
+      <h2 class="isr-section">Contacts <span class="isr-muted" id="count"></span></h2>
+      <ul class="isr-list cop-list" id="list"></ul>
+    </section>
+    <section class="cop-block cop-legend" aria-label="Legend">
+      <span><span class="aff friend"></span>Friend</span>
+      <span><span class="aff hostile"></span>Hostile</span>
+      <span><span class="aff unknown"></span>Unknown</span>
+      <span><span class="aff neutral"></span>Neutral</span>
+      <span><span class="cop-key-line"></span>Bearing (no range)</span>
+      <span><span class="cop-key-lead"></span>Course, 1 min</span>
+      <span><span class="cop-key-ring"></span>Uncertainty</span>
+      <span><span class="cop-key-badge">OP1 · 2 person</span>Bearing only, at the sensor</span>
+      <span><span class="cop-key-cluster">3</span>Cluster</span>
+      <span><span class="cop-key-fade"></span>Stale</span>
+    </section>
+  </aside>
+</div>
+<script src="/vendor/leaflet.js?v=1.9.4"></script>
+<script src="/vendor/milsymbol.js?v=3.0.4"></script>
+<script src="/mgrs.js?v=1"></script>
+<script src="/common.js?v=7"></script>
+<script src="/map.js?v=3"></script>
+</body>
+</html>

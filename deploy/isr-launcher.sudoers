@@ -1,0 +1,9 @@
+# Installed to /etc/sudoers.d/isr-launcher (mode 0440) by install.sh.
+# The launcher may run exactly two root-owned helpers: isr-switch-helper (validates its argument
+# against profiles.d) and isr-set-clock (validates a plausible epoch, sets the time only when off by
+# more than --min-skew and not NTP-synced). No other command, no shell, no environment pass-through.
+# Members of group sudo may run isr-set-clock without a password too, so a Mac can set the Pi's
+# clock over ssh (laptop/pi-clock.py) even where sudo normally asks for one.
+Defaults:isr-launcher !requiretty, env_reset
+isr-launcher ALL=(root) NOPASSWD: /opt/pi-profiles/bin/isr-switch-helper, /opt/pi-profiles/bin/isr-set-clock
+%sudo ALL=(root) NOPASSWD: /opt/pi-profiles/bin/isr-set-clock
